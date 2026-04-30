@@ -90,6 +90,20 @@ decoupled Chipmunk RHF settings:
 only for assessing the original Chipmunk parameter security and is not used to
 generate Lemur implementation constants.
 
+## Rice-Encoded Size Entries
+
+The paper reports worst-case sizes from `summary.txt` and also reports
+Rice-encoded aggregate-size estimates for selected `tau=20` rows.  Reproduce
+those encoded-size entries with:
+
+```sh
+python3 rice_sizes.py
+```
+
+The script reads `summary.txt` and prints the shipped `N=1024` cell plus the
+larger `N=32768` and `N=1048576` rows used in the paper's implementation
+performance table.
+
 ## Prime Conventions
 
 KOTS uses CRT multiplication.  The estimator chooses `q'` with:

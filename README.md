@@ -60,9 +60,10 @@ and Python/Rust-compatible test-vector behavior.
 
 ## Benchmarking And Sizes
 
-The artifact benchmarks the fixed `d=256, k=4, tau=20` parameter set.  The
-`tau=24` cell is supported by the implementation for parameter coverage, but it
-is not used as the default benchmark target.
+The Python and Rust implementations ship the fixed
+`d=256, k=4, tau=20, N=1024` parameter cell.  The paper also reports
+estimator-derived rows for larger signer counts; those larger rows are not
+separate implementation profiles in this artifact.
 
 Run:
 
@@ -73,29 +74,37 @@ cargo run --release --bin bench -- --fast
 cargo run --release --bin bench_verify -- --zero-fixture --n 1048576 --reps 1
 ```
 
-### Reproducing Paper Table 6
+### Reproducing The Paper Implementation Table
 
-Paper Table 6 reports implementation performance for `tau=20` and
-`N in {2^10, 2^13, 2^15, 2^20}`.
+The paper's implementation-performance table reports the shipped `tau=20,
+N=2^10` implementation cell plus extrapolated or estimator-derived entries for
+`N in {2^15, 2^20}`.
 
 Run the deterministic size calculations:
 
 ```sh
 cd lemur-rs
 cargo run --release --bin lemur -- sizes --n 1024
-cargo run --release --bin lemur -- sizes --n 8192
-cargo run --release --bin lemur -- sizes --n 32768
-cargo run --release --bin lemur -- sizes --n 1048576
 ```
 
-These produce the aggregated-signature-size row:
+This reproduces the implemented aggregated-signature-size cell:
 
 | N | Table entry |
 | ---: | ---: |
 | `2^10` | 201.2 KB |
-| `2^13` | 222.6 KB |
-| `2^15` | 235.4 KB |
-| `2^20` | 238.5 KB |
+
+The larger signature-size cells are predicted Rice-encoded sizes for the
+corresponding `tau=20` rows in `parameter/summary.txt`.  Reproduce them with:
+
+```sh
+cd parameter
+python3 rice_sizes.py
+```
+
+| N | Worst-case row in `parameter/summary.txt` | Table entry |
+| ---: | ---: | ---: |
+| `2^15` | 331 KB | 283.5 KB |
+| `2^20` | 457 KB | 394.4 KB |
 
 Run the main timing benchmark:
 
@@ -103,15 +112,13 @@ Run the main timing benchmark:
 cargo run --release --bin bench -- --fast
 ```
 
-This produces the measured `N=2^10` and `N=2^13` entries used in Table 6:
+This produces the measured `N=2^10` entries used in the paper table:
 
 | Row | Source line |
 | --- | --- |
 | Signing, BDS08 | `Stateful Signing (BDS08, mean ...)` |
 | Aggregation, `N=2^10` | `Secure Aggregation` under `--- Aggregation (N=1024) ---` |
-| Aggregation, `N=2^13` | `Secure Aggregation` under `--- Aggregation (N=8192) ---` |
 | Batch verification, `N=2^10` | `Batch Verify` under `--- Aggregation (N=1024) ---` |
-| Batch verification, `N=2^13` | `Batch Verify` under `--- Aggregation (N=8192) ---` |
 
 The tree-in-memory signing row is optional because it materializes the HVC tree
 and needs substantial RAM:
@@ -135,9 +142,10 @@ verification cells.  The benchmark uses an accepting all-zero public-key and
 aggregate-signature fixture so it measures `lemur_avrfy` without first running
 large aggregation.
 
-The large-`N` aggregation cells in Table 6 are marked as extrapolated.  To
-recompute them, take the measured `N=2^13` `Secure Aggregation` time from
-`bench --fast` and scale linearly:
+The large-`N` aggregation cells in the paper table are marked as extrapolated.  To
+recompute them, take the measured `N=8192` `Secure Aggregation` time from
+`bench --fast` and scale linearly.  This `N=8192` benchmark is an extrapolation
+anchor and is not itself reported as a paper-table column:
 
 ```text
 Aggregation(2^15) = Aggregation(8192) * 32768 / 8192

@@ -121,7 +121,7 @@ enum Commands {
         #[arg(
             long,
             default_value = "1024",
-            help = "number of signers for aggregated sizes"
+            help = "number of signers for aggregate encoding under the shipped profile"
         )]
         n: usize,
     },
@@ -450,6 +450,14 @@ fn main() {
 }
 
 fn cmd_sizes(n_signers: usize, profile: &'static Profile) {
+    if n_signers != profile.n_signers {
+        eprintln!(
+            "warning: --n changes only the aggregate encoding estimate under \
+             profile={} (sized for N={}); it does not switch to another \
+             parameter-estimator row",
+            profile.name, profile.n_signers
+        );
+    }
     let n_slots = 1usize << profile.tau;
     println!(
         "Lemur serialised sizes  (profile={}, d={}, tau={}, \
