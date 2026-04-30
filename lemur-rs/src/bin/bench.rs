@@ -523,10 +523,13 @@ fn main() {
 
     // -----------------------------------------------------------------
     // Optional: materialised HVC tree — O(τ) offline signing at the cost
-    // of ~12.88 GB in-memory state.  Opt in with `--with-tree`.
+    // of about 8 GiB in-memory state for the shipped τ=20 profile.  Opt in
+    // with `--with-tree`.
     //
-    // Matches Chipmunk's memory-for-speed tradeoff (Chipmunk stores a
-    // full tree at d=512 for ~8 GB; this is the analogous Lemur option).
+    // Matches Chipmunk's memory-for-speed tradeoff (Chipmunk's analogous
+    // tree at d=1024, the parameter point used in the paper's λ=128
+    // Chipmunk comparison, is roughly 16 GB; this is the analogous Lemur
+    // option).
     // Neither part of the secret key nor persisted to disk.
     // -----------------------------------------------------------------
     if with_tree {
