@@ -6,8 +6,8 @@ use crate::aux_ntt::CrtBackend;
 use crate::error::LemurError;
 use crate::hvc::{
     add_openings, bds_advance, bds_init, bds_opening, hvc_ivrfy, hvc_open_with_known_leaf,
-    hvc_setup_with_profile, hvc_setup_with_profile_and_tau, hvc_svrfy, scale_opening_any,
-    BdsState, HvcCom, HvcOpening, HvcPp,
+    hvc_setup_with_profile, hvc_setup_with_profile_and_tau, hvc_svrfy, scale_opening_any, BdsState,
+    HvcCom, HvcOpening, HvcPp,
 };
 use crate::kots::{
     kots_ivrfy, kots_keygen, kots_pk_from_seed, kots_setup, kots_sign, kots_svrfy, KotsA, KotsSig,
@@ -20,7 +20,7 @@ use rayon::prelude::*;
 /// in the CRT-backed KOTS ring; result is in the signed canonical range
 /// `[-q'/2, q'/2]`.  Analogous to `poly::scale_vec` but routes through
 /// the CRT backend because q' is not natively NTT-friendly.
-fn scale_vec_crt(w: &[i64], v: &[i64], n: usize, backend: &CrtBackend) -> Vec<i64> {
+pub fn scale_vec_crt(w: &[i64], v: &[i64], n: usize, backend: &CrtBackend) -> Vec<i64> {
     let d = backend.d();
     let q = backend.q() as i64;
     let half = q / 2;
@@ -50,7 +50,13 @@ fn scale_vec_crt(w: &[i64], v: &[i64], n: usize, backend: &CrtBackend) -> Vec<i6
 
 /// Scale each entry of M (shape `r × c × d`) by scalar poly `w` in the
 /// CRT-backed KOTS ring.  Result is signed.
-fn scale_mat_crt(w: &[i64], m_mat: &[i64], r: usize, c: usize, backend: &CrtBackend) -> Vec<i64> {
+pub fn scale_mat_crt(
+    w: &[i64],
+    m_mat: &[i64],
+    r: usize,
+    c: usize,
+    backend: &CrtBackend,
+) -> Vec<i64> {
     scale_vec_crt(w, m_mat, r * c, backend)
 }
 
@@ -385,8 +391,7 @@ fn weighted_sum_commitments(ws: &[Vec<i64>], pks: &[LemurPk], profile: &Profile)
         HvcRing::U64(rp) => {
             for (w, pk) in ws.iter().zip(pks.iter()) {
                 for r in 0..omega {
-                    let w_hat_prod =
-                        crate::poly::poly_mul_u64(w, &pk.0 .0[r * d..(r + 1) * d], rp);
+                    let w_hat_prod = crate::poly::poly_mul_u64(w, &pk.0 .0[r * d..(r + 1) * d], rp);
                     for i in 0..d {
                         result[r * d + i] = (result[r * d + i] + w_hat_prod[i]).rem_euclid(q);
                     }

@@ -51,6 +51,7 @@ cargo run --release --bin lemur -- sizes
 
 cargo run --release --bin bench -- --fast
 cargo run --release --bin bench_breakdown
+cargo run --release --bin bench_verify -- --zero-fixture --n 1048576 --reps 1
 ```
 
 The Rust CLI mirrors the Python CLI.  The Rust crate also includes integration
@@ -69,7 +70,82 @@ Run:
 cd lemur-rs
 cargo run --release --bin lemur -- sizes
 cargo run --release --bin bench -- --fast
+cargo run --release --bin bench_verify -- --zero-fixture --n 1048576 --reps 1
 ```
+
+### Reproducing Paper Table 6
+
+Paper Table 6 reports implementation performance for `tau=20` and
+`N in {2^10, 2^13, 2^15, 2^20}`.
+
+Run the deterministic size calculations:
+
+```sh
+cd lemur-rs
+cargo run --release --bin lemur -- sizes --n 1024
+cargo run --release --bin lemur -- sizes --n 8192
+cargo run --release --bin lemur -- sizes --n 32768
+cargo run --release --bin lemur -- sizes --n 1048576
+```
+
+These produce the aggregated-signature-size row:
+
+| N | Table entry |
+| ---: | ---: |
+| `2^10` | 201.2 KB |
+| `2^13` | 222.6 KB |
+| `2^15` | 235.4 KB |
+| `2^20` | 238.5 KB |
+
+Run the main timing benchmark:
+
+```sh
+cargo run --release --bin bench -- --fast
+```
+
+This produces the measured `N=2^10` and `N=2^13` entries used in Table 6:
+
+| Row | Source line |
+| --- | --- |
+| Signing, BDS08 | `Stateful Signing (BDS08, mean ...)` |
+| Aggregation, `N=2^10` | `Secure Aggregation` under `--- Aggregation (N=1024) ---` |
+| Aggregation, `N=2^13` | `Secure Aggregation` under `--- Aggregation (N=8192) ---` |
+| Batch verification, `N=2^10` | `Batch Verify` under `--- Aggregation (N=1024) ---` |
+| Batch verification, `N=2^13` | `Batch Verify` under `--- Aggregation (N=8192) ---` |
+
+The tree-in-memory signing row is optional because it materializes the HVC tree
+and needs substantial RAM:
+
+```sh
+cargo run --release --bin bench -- --fast --with-tree
+```
+
+Use the `Tree Sign (mean ...)` line for the table.  At `tau=20`, the tree
+allocation is about 8 GiB ((2^21 − 1) · ω · d · 8 B with ω=2, d=256).
+
+Run the large-`N` verification-only benchmark:
+
+```sh
+cargo run --release --bin bench_verify -- --zero-fixture --n 32768 --reps 3
+cargo run --release --bin bench_verify -- --zero-fixture --n 1048576 --reps 1
+```
+
+Use the `Batch Verify mean` lines for the `N=2^15` and `N=2^20` batch
+verification cells.  The benchmark uses an accepting all-zero public-key and
+aggregate-signature fixture so it measures `lemur_avrfy` without first running
+large aggregation.
+
+The large-`N` aggregation cells in Table 6 are marked as extrapolated.  To
+recompute them, take the measured `N=2^13` `Secure Aggregation` time from
+`bench --fast` and scale linearly:
+
+```text
+Aggregation(2^15) = Aggregation(8192) * 32768 / 8192
+Aggregation(2^20) = Aggregation(8192) * 1048576 / 8192
+```
+
+For the 24-thread run used in the paper, `Aggregation(8192) = 5.73 s`, giving
+approximately `23 s` and `12 min`.
 
 Representative serialized sizes for `tau=20, N=1024`:
 
@@ -94,17 +170,31 @@ Representative `bench --fast` timings from a 24-thread run:
 | Aggregate after verified inputs, `N=1024` | 2.40 s |
 | Secure aggregation, `N=1024` | 567 ms |
 | Batch verification, `N=1024` | 30.1 ms |
-| Aggregated signature size, `N=1024` | 194.3 KB |
 | Individual pre-verify, `N=8192` | 13.6 s |
 | Aggregate after verified inputs, `N=8192` | 37.6 s |
 | Secure aggregation, `N=8192` | 5.73 s |
 | Batch verification, `N=8192` | 223 ms |
-| Aggregated signature size, `N=8192` | 216.0 KB |
 
-Timings are machine-dependent.  The `lemur sizes` table reports deterministic
-serialized-size formulas; the benchmark's aggregated-signature sizes are the
-actual encoded lengths from that run.  Reviewers should regenerate both on
-their own hardware.
+Timings are machine-dependent.
+
+A note on aggregated-signature sizes:  the `lemur sizes` numbers in the
+serialized-size table above (e.g. 201.2 KB at `N=1024`) are the **predicted**
+encoding lengths.  For Rice-coded components — Babai path, sibling labels,
+and `u` — the per-coefficient cost is estimated from the folded-Gaussian
+mean unary tail (`0.7979·σ / 2^k`) plus a small conservative pad for the
+sign bit and unary terminator.  `lemur sizes` marks these totals with a
+leading `~` to flag that they are estimates.  A `bench --fast` run also
+prints an `Agg Sig Size` line, but that is the **realised** length of one
+specific encoded aggregate, which fluctuates by a few percent around the
+formula because Rice output length is data-dependent.  Treat the formula
+number as the headline figure; the per-run measurement is informational
+only.
+
+For large batch-verification timings, use `bench_verify --zero-fixture`.  It
+times only `lemur_avrfy` on an accepting all-zero public-key/aggregate fixture,
+avoiding the main benchmark's individual preverification and aggregation
+measurements.  The `N=2^20` run still materializes the public-key list and may
+need several GiB of memory.
 
 ## Python/Rust Interoperability Check
 

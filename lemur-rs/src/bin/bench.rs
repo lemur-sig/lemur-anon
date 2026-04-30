@@ -14,7 +14,7 @@ use lemur_rs::hvc::{add_openings, scale_opening_any};
 use lemur_rs::kots::{kots_keygen, kots_keygen_ctx, kots_pk_from_seed, kots_sign, KotsSig};
 use lemur_rs::lemur::{
     lemur_aggregate, lemur_avrfy, lemur_ivrfy, lemur_keygen, lemur_setup_with_profile,
-    lemur_sign_seed, lemur_sign_stateful_mut, LemurAggSig,
+    lemur_sign_seed, lemur_sign_stateful_mut, scale_mat_crt, LemurAggSig,
 };
 use lemur_rs::materialized::{lemur_sign_tree, MaterializedHvcTree};
 use lemur_rs::params::{GAUSS_CDT_BITS, GAUSS_TAILCUT};
@@ -134,47 +134,6 @@ fn concat_pk_bytes(pks: &[lemur_rs::lemur::LemurPk]) -> Vec<u8> {
     pks.iter()
         .flat_map(|pk| pk.0 .0.iter().flat_map(|&x| x.to_le_bytes()))
         .collect()
-}
-
-fn scale_vec_crt(
-    w: &[i64],
-    v: &[i64],
-    n: usize,
-    backend: &lemur_rs::aux_ntt::CrtBackend,
-) -> Vec<i64> {
-    let d = backend.d();
-    let q = backend.q() as i64;
-    let half = q / 2;
-
-    let (w_p1, w_p2) = backend.forward_pair_i64(w);
-    let mut v_p1 = vec![0u64; d];
-    let mut v_p2 = vec![0u64; d];
-    let mut acc_p1 = vec![0u64; d];
-    let mut acc_p2 = vec![0u64; d];
-    let mut result = vec![0i64; n * d];
-
-    for i in 0..n {
-        backend.forward_into_i64(&v[i * d..(i + 1) * d], &mut v_p1, &mut v_p2);
-        acc_p1.iter_mut().for_each(|x| *x = 0);
-        acc_p2.iter_mut().for_each(|x| *x = 0);
-        backend.accum_mul_slices(&mut acc_p1, &mut acc_p2, &w_p1, &w_p2, &v_p1, &v_p2);
-        let prod = backend.finalize_accum_slices(&mut acc_p1, &mut acc_p2);
-        for k in 0..d {
-            let x = prod[k] as i64;
-            result[i * d + k] = if x > half { x - q } else { x };
-        }
-    }
-    result
-}
-
-fn scale_mat_crt(
-    w: &[i64],
-    m_mat: &[i64],
-    r: usize,
-    c: usize,
-    backend: &lemur_rs::aux_ntt::CrtBackend,
-) -> Vec<i64> {
-    scale_vec_crt(w, m_mat, r * c, backend)
 }
 
 fn aggregate_verified_only(

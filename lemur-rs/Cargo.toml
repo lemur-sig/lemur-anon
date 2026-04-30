@@ -15,6 +15,10 @@ path = "src/bin/bench.rs"
 name = "bench_breakdown"
 path = "src/bin/bench_breakdown.rs"
 
+[[bin]]
+name = "bench_verify"
+path = "src/bin/bench_verify.rs"
+
 
 [dependencies]
 sha3 = "0.10"
